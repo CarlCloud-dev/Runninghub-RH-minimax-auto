@@ -1,0 +1,36 @@
+{
+  "name": "rh-canvas-app",
+  "version": "0.1.13",
+  "private": true,
+  "description": "RunningHub 画布批量视频生成桌面应用：目录扫描→导入画布→运行→轮询→自动下载，附本地 REST API",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "npm version patch --no-git-tag-version && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.local.rhcanvas",
+    "productName": "RH画布视频生成",
+    "files": [
+      "src/**/*",
+      "vendor/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "assets/icon.ico"
+    },
+    "portable": {
+      "artifactName": "RH画布视频生成-${version}-便携版.exe",
+      "unicode": true
+    }
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12"
+  }
+}

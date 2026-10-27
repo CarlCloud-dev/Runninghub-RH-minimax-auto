@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>RH 画布视频生成</title>
+<style>
+:root{
+  --bg:#0b0d14; --bg2:#10121c; --card:#151826; --card2:#1a1e30;
+  --line:#262b42; --line2:#323a5e;
+  --tx:#e6e8f4; --tx2:#9aa0bf; --tx3:#6b7194;
+  --acc:#6d6df6; --acc2:#8b5cf6; --acc-g:linear-gradient(135deg,#6d6df6,#8b5cf6);
+  --ok:#34d399; --warn:#fbbf24; --err:#f87171; --run:#60a5fa;
+  --r:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;scrollbar-width:thin;scrollbar-color:#333b5e transparent}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#333b5e;border-radius:7px;border:1.5px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:#4d578e;background-clip:padding-box}
+::-webkit-scrollbar-corner{background:transparent}
+html,body{height:100%}
+body{background:var(--bg);color:var(--tx);font:13px/1.55 "Segoe UI","Microsoft YaHei",system-ui,sans-serif;display:flex;overflow:hidden;padding-top:32px}
+
+/* ===== 自绘标题栏 ===== */
+.titlebar{position:fixed;top:0;left:0;right:0;height:32px;z-index:50;display:flex;align-items:center;gap:8px;padding:0 4px 0 12px;background:rgba(11,13,20,.96);border-bottom:1px solid var(--line);-webkit-app-region:drag;user-select:none;backdrop-filter:blur(8px)}
+.titlebar .tb-logo{width:16px;height:16px;border-radius:5px;display:block;flex:none}
+.titlebar .tb-title{font-size:12px;color:var(--tx2);pointer-events:none}
+.titlebar .tb-ver{font-size:10px;color:var(--tx3);pointer-events:none}
+.tb-btns{margin-left:auto;display:flex;height:100%;-webkit-app-region:no-drag}
+.tb-btns button{width:42px;height:100%;background:transparent;border:0;color:var(--tx2);cursor:pointer;font-size:13px;line-height:1;border-radius:0;transition:.12s}
+.tb-btns button:hover{background:#2a2f4a;color:var(--tx)}
+.tb-btns button.close:hover{background:#c42b2b;color:#fff}
+
+/* ===== 侧边栏 ===== */
+.side{width:176px;flex:none;background:var(--bg2);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 10px}
+.brand{display:flex;align-items:center;gap:9px;padding:2px 6px 14px}
+.brand .logo{width:30px;height:30px;border-radius:9px;display:block;flex:none;box-shadow:0 4px 14px #6d6df644}
+.brand b{font-size:13px;display:block}
+.brand small{color:var(--tx3);font-size:10px}
+.nav{display:flex;flex-direction:column;gap:3px}
+.nav button{display:flex;align-items:center;gap:9px;width:100%;padding:8px 11px;border:0;border-radius:8px;background:transparent;color:var(--tx2);cursor:pointer;font-size:13px;text-align:left;transition:.15s}
+.nav button:hover{background:#ffffff0c;color:var(--tx)}
+.nav button.on{background:var(--acc-g);color:#fff;box-shadow:0 3px 12px #6d6df640}
+.nav .ico{width:16px;text-align:center}
+.side .foot{margin-top:auto;padding:8px;color:var(--tx3);font-size:10px;line-height:1.5}
+
+/* ===== 主区 ===== */
+.main{flex:1;overflow:auto;padding:13px 16px}
+.page{display:none}.page.on{display:block;animation:fade .2s}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+h2{font-size:15.5px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+h2 .sub{font-size:11.5px;color:var(--tx3);font-weight:400}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 14px;margin-bottom:10px;box-shadow:0 2px 8px #0003}
+.card h3{font-size:11.5px;color:var(--tx2);font-weight:600;letter-spacing:.4px;margin-bottom:8px;text-transform:uppercase}
+.row{display:flex;gap:8px;align-items:center;margin:5px 0;flex-wrap:wrap}
+.lbl{color:var(--tx3);font-size:11.5px;min-width:58px}
+
+input[type=text],input[type=number]{background:var(--bg);border:1px solid var(--line2);color:var(--tx);border-radius:7px;padding:5px 10px;outline:none;transition:.15s;font-size:12.5px}
+input[type=text]{flex:1;min-width:200px}
+input[type=number]{width:64px}
+input:focus{border-color:var(--acc);box-shadow:0 0 0 3px #6d6df622}
+input::placeholder{color:var(--tx3)}
+
+button{background:var(--card2);color:var(--tx);border:1px solid var(--line2);border-radius:7px;padding:5px 12px;cursor:pointer;font-size:12.5px;transition:.15s}
+button:hover{background:#232844;border-color:#3d4470}
+button.pri{background:var(--acc-g);border:0;color:#fff;font-weight:600;box-shadow:0 3px 12px #6d6df640}
+button.pri:hover{filter:brightness(1.12)}
+button.ghost{background:transparent}
+button.sm{padding:3px 9px;font-size:11.5px;border-radius:6px}
+button.danger{background:var(--err);border-color:var(--err);color:#fff;font-weight:600}
+button.danger:hover{background:#ef5555;border-color:#ef5555}
+button:disabled{opacity:.45;cursor:not-allowed}
+
+/* 状态灯 */
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--tx3);margin-right:6px;vertical-align:middle}
+.dot.on{background:var(--ok);box-shadow:0 0 8px #34d39988;animation:pulse 2s infinite}
+.dot.off{background:var(--err)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.stat{display:inline-flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:2px 10px;font-size:11.5px;color:var(--tx2)}
+.stat b{color:var(--tx)}
+
+/* 标签 */
+.tag{display:inline-block;padding:1px 9px;border-radius:20px;font-size:10.5px;background:var(--bg);color:var(--tx2);border:1px solid var(--line)}
+.tag.done{color:var(--ok);border-color:#34d39944;background:#34d39914}
+.tag.failed,.tag.interrupted,.tag.cancelled{color:var(--err);border-color:#f8717144;background:#f8717114}
+.tag.running{color:var(--run);border-color:#60a5fa44;background:#60a5fa14;animation:pulse 1.6s infinite}
+.tag.pending{color:var(--warn);border-color:#fbbf2444;background:#fbbf2414}
+
+/* 表格 */
+.tbl-wrap{max-height:210px;overflow:auto;border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{color:var(--tx3);font-weight:500;font-size:11px;text-align:left;padding:5px 9px;border-bottom:1px solid var(--line2);position:sticky;top:0;background:var(--card);z-index:1}
+td{padding:6px 9px;border-bottom:1px solid var(--line);color:var(--tx2);vertical-align:middle}
+tr:hover td{background:#ffffff06}
+td.id{color:var(--tx);font-family:Consolas,monospace;font-size:11px}
+td .err{color:var(--err);font-size:11px}
+.kval{background:#0b0d14;border:1px solid var(--line);border-radius:6px;padding:3px 10px;font:12px Consolas,"Cascadia Mono",monospace;color:var(--acc);user-select:all}
+
+/* 进度条 */
+.bar{height:4px;background:var(--bg);border-radius:3px;overflow:hidden;margin-top:4px;min-width:80px}
+.bar i{display:block;height:100%;background:var(--acc-g);border-radius:3px;transition:width .3s}
+
+/* 日志 */
+#log{background:#080910;border:1px solid var(--line);border-radius:8px;padding:8px 12px;height:110px;overflow:auto;font:11px/1.7 Consolas,"Cascadia Mono",monospace;color:#7d83a8}
+#log.full{height:calc(100vh - 165px)}
+#log div{white-space:pre-wrap;word-break:break-all}
+#log div::before{content:"› ";color:#3d4470}
+#log .t{color:#4a5080}
+
+/* API 文档（默认折叠省高度） */
+details.card summary{cursor:pointer;list-style:none;font-size:11.5px;color:var(--tx2);font-weight:600;letter-spacing:.4px;text-transform:uppercase}
+details.card summary::before{content:"▸ ";color:var(--acc)}
+details.card[open] summary::before{content:"▾ "}
+details.card summary:hover{color:var(--tx)}
+.api-doc{background:#0d0f19;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:11px/1.8 Consolas,monospace;color:#8b90b8;overflow:auto;max-height:170px;margin-top:8px}
+.api-doc b{color:#c4b5fd}
+.api-doc .m{color:#6d6df6;font-weight:700}
+.api-doc .cm{color:#565d85}
+
+select{background:var(--bg);border:1px solid var(--line2);color:var(--tx);border-radius:7px;padding:5px 9px;outline:none;font-size:12px}
+select:focus{border-color:var(--acc)}
+#segList{max-height:190px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px}
+.srow{display:flex;align-items:center;gap:8px;padding:3px 8px;border-radius:6px;font-size:12px}
+.srow:hover{background:#ffffff08}
+.srow .nm{flex:1;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srow .meta{color:var(--tx3);font-size:10.5px;white-space:nowrap}
+.srow .meta.bad{color:var(--err)}
+.srow input[type=checkbox]{accent-color:var(--acc);width:13px;height:13px}
+.epsep{padding:5px 8px 1px;color:var(--tx3);font-size:10.5px;border-top:1px solid var(--line);margin-top:3px}
+#dropZone{display:flex;gap:8px;align-items:center;border:1.5px dashed var(--line2);border-radius:9px;padding:8px;margin:8px 0;transition:.15s}
+#dropZone.over{border-color:var(--acc);background:#6d6df611}
+#dropZone input{flex:1}
+.sw{position:relative;width:36px;height:20px;flex:none}
+.sw input{opacity:0;width:0;height:0}
+.sw i{position:absolute;inset:0;background:var(--bg);border:1px solid var(--line2);border-radius:20px;transition:.2s;cursor:pointer}
+.sw i::before{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--tx3);transition:.2s}
+.sw input:checked+i{background:var(--acc);border-color:var(--acc)}
+.sw input:checked+i::before{transform:translateX(15px);background:#fff}
+.check{display:flex;align-items:center;gap:8px;color:var(--tx2);cursor:pointer;font-size:13px}
+.empty{color:var(--tx3);text-align:center;padding:22px;font-size:12.5px}
+.mask{position:fixed;inset:0;background:#000000b8;display:none;align-items:center;justify-content:center;z-index:99;backdrop-filter:blur(3px)}
+.mbox{background:var(--card);border:1px solid var(--line2);border-radius:14px;padding:24px 34px;box-shadow:0 12px 40px #000a;animation:fade .15s}
+.mbox .mt{color:var(--tx);font-size:14.5px;text-align:center}
+.mbox .mt b{color:var(--acc)}
+.mbox .msub{color:var(--tx3);font-size:12px;text-align:center;margin-top:6px}
+#agText,#ugText{max-height:56vh;overflow:auto;background:#0b0d14;border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin-top:10px;font:11.5px/1.65 Consolas,"Cascadia Mono","Microsoft YaHei",monospace;color:var(--tx2);white-space:pre-wrap;word-break:break-all;user-select:text}
+#ugText{color:var(--tx)}
+</style>
+</head>
+<body>
+
+<div class="titlebar">
+  <img class="tb-logo" src="icon.png" alt="">
+  <span class="tb-title">RH 画布视频生成</span>
+  <span class="tb-ver">MiniMax · canvas</span>
+  <div class="tb-btns">
+    <button id="tbMin" title="最小化">–</button>
+    <button id="tbClose" class="close" title="关闭（退出应用）">✕</button>
+  </div>
+</div>
+
+<nav class="side">
+  <div class="brand">
+    <img class="logo" src="icon.png" alt="">
+    <div><b>画布视频生成</b><small>RunningHub · MiniMax</small></div>
+  </div>
+  <div class="nav">
+    <button class="on" data-p="p1"><span class="ico">📁</span>画布导入</button>
+    <button data-p="p2"><span class="ico">⚡</span>API 服务</button>
+    <button data-p="p3"><span class="ico">📜</span>运行日志</button>
+  </div>
+  <div class="foot">
+    v<span id="footVer">-</span> · 本地 API <span id="footPort">-</span><br>
+    <span id="footUp">-</span>
+  </div>
+</nav>
+
+<div class="main">
+
+<!-- ============ 页1：画布导入 ============ -->
+<section class="page on" id="p1">
+  <h2 style="display:flex;align-items:center">画布导入 <span class="sub">目录 → 画布节点（人工预览后运行）</span>
+    <span style="flex:1"></span>
+    <button id="bGuide" class="sm ghost">📖 使用说明</button>
+  </h2>
+
+  <div class="card">
+    <div class="row" id="st1"></div>
+    <div class="row">
+      <span class="lbl">导入画布</span>
+      <input type="text" id="canvasUrl" placeholder="https://rhtv.runninghub.cn/project/canvas/…">
+      <button id="bCv" class="sm">切换</button>
+      <button id="bWinToggle" class="ghost sm">显示画布窗口</button>
+    </div>
+    <div class="row">
+      <span class="lbl">下载目录</span>
+      <input type="text" id="dlDir" placeholder="生成视频保存目录">
+      <button id="bDlPick" class="sm">选择…</button>
+      <button id="bDl" class="ghost sm">打开</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="margin-top:0">
+      <button id="bNewCol" title="记住新列起点（画布最右+320、顶对齐），下次导入进新列">⇥ 换列</button>
+      <button id="bRunIdle">▶ 运行空闲节点</button>
+      <label class="check" title="同时运行多个空闲节点"><span class="sw"><input type="checkbox" id="conc"><i></i></span>并发</label>
+      <input type="number" id="runN" min="1" max="8" value="2" style="width:56px" title="并发数量">
+      <button id="bClearMain" class="ghost" style="margin-left:auto;border-color:var(--err);color:var(--err)" title="删除画布全部节点（慎用）">🗑 清空画布</button>
+    </div>
+
+    <div id="dropZone" title="把项目目录拖到这里">
+      <input type="text" id="dir" placeholder="项目目录（网店系统/EP/SEG，也可直接拖入文件夹）">
+      <button id="bPick" class="sm">选择…</button>
+      <button id="bScan" class="sm pri">读取目录</button>
+      <span id="scanOut" style="color:var(--tx3);font-size:11.5px"></span>
+    </div>
+    <div class="row" id="scopeRow" style="display:none">
+      <select id="selProj" style="display:none"></select>
+      <select id="selEp" style="display:none"></select>
+      <span id="scopeName" style="color:var(--tx3);font-size:11.5px"></span>
+      <span style="flex:1"></span>
+      <button class="pri" id="bImport">批量导入</button>
+    </div>
+    <div id="segBox" style="display:none">
+      <div id="segList"></div>
+      <div class="row" id="colTip" style="display:none;color:var(--warn);font-size:11.5px"></div>
+    </div>
+    <div class="row" id="impJob" style="display:none;margin-bottom:0"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-top:0">
+      <h3 style="margin:0;font-size:13px">任务队列 <span id="qstat2" style="text-transform:none;color:var(--tx3);font-weight:400"></span></h3>
+      <div class="row" style="margin:0">
+        <button id="bStopAll2" class="sm ghost" style="border-color:var(--err);color:var(--err)">全部停止</button>
+        <button id="bClearDone2" class="sm ghost">清除结束记录</button>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th style="width:64px">ID</th><th style="width:44px">类型</th><th style="width:76px">状态</th><th>进度</th><th style="width:150px">错误</th><th style="width:120px;text-align:right">操作</th></tr></thead>
+        <tbody id="jobs2"></tbody>
+      </table>
+    </div>
+    <div id="jobs2Empty" class="empty" style="padding:16px 0">暂无任务</div>
+  </div>
+</section>
+
+<!-- 批量导入布局弹窗（插件同款） -->
+<div class="mask" id="mask">
+  <div class="mbox">
+    <div class="mt">批量导入 <b id="mCount"></b> 个 SEG（跨 <b id="mEps"></b> 个 EP）</div>
+    <div class="msub">选择画布布局方式</div>
+    <div class="row" style="justify-content:center;margin-top:14px">
+      <button class="pri" id="mMerge">合并一列</button>
+      <button id="mSplit">每EP一列</button>
+      <button class="ghost" id="mCancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 页2：API 服务 ============ -->
+<section class="page" id="p2">
+  <h2 style="display:flex;align-items:center">API 服务 <span class="sub">对外接口 · 队列 · 工作画布</span>
+    <span style="flex:1"></span>
+    <button id="bAgent" class="sm ghost">🤖 Agent接入</button>
+  </h2>
+
+  <div class="card">
+    <div class="row" style="margin-top:0;margin-bottom:0">
+      <span class="lbl">API 地址</span><code class="kval" id="apiUrl"></code><button id="bCpUrl" class="sm ghost">复制</button>
+      <span class="lbl" style="margin-left:14px">API Key</span><code class="kval" id="apiKey"></code><button id="bCpKey" class="sm ghost">复制</button>
+      <button id="bRandKey" class="sm ghost" title="随机生成一个新 Key（旧 key 立即失效）">随机</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>设置</h3>
+    <div class="row">
+      <span class="lbl">工作画布</span>
+      <input type="text" id="workUrl" placeholder="API 任务专用画布链接（留空 = 复用导入画布）">
+      <button id="bWorkUrl" class="sm">保存</button>
+      <button id="bWorkToggle" class="ghost sm">显示</button>
+      <button id="bWorkClear" class="ghost sm" title="清空该画布全部节点">清空节点</button>
+    </div>
+    <div class="row">
+      <span class="lbl">并发生成</span>
+      <input type="number" id="mc" min="1" max="8">
+      <label class="check"><span class="sw"><input type="checkbox" id="cof"><i></i></span>失败也清理节点</label>
+      <span class="lbl">时长钳位</span>
+      <label class="check"><span class="sw"><input type="checkbox" id="cdmin"><i></i></span>&lt;4s 按 4s</label>
+      <label class="check"><span class="sw"><input type="checkbox" id="cdmax"><i></i></span>&gt;15s 按 15s</label>
+      <button id="bSaveCfg" class="pri sm">保存设置</button>
+      <span id="cfgMsg" style="color:var(--ok);font-size:12px"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="margin-top:0;margin-bottom:6px">
+      <h3 style="margin:0;font-size:13px">任务队列 <span id="qstat" style="text-transform:none;color:var(--tx3);font-weight:400"></span></h3>
+      <span style="flex:1"></span>
+      <button id="bStopAll" class="sm ghost" style="border-color:var(--err);color:var(--err)">全部停止</button>
+      <button id="bClearDone" class="sm ghost">清除结束记录</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>ID</th><th>状态</th><th>进度</th><th>错误</th><th>操作</th></tr></thead>
+      <tbody id="jobs"></tbody>
+    </table></div>
+    <div class="empty" id="jobsEmpty">暂无任务</div>
+  </div>
+
+  <details class="card">
+    <summary>接口速查</summary>
+    <div class="api-doc"><span class="cm"># 图片+提示词 → 生成 → 下载（主接口）</span>
+<span class="m">POST</span> /api/generate
+{"images":["E:/a/1.png","E:/a/2.png"],"prompt":"…","duration":4,
+ "params":{"aspectRatio":"9:16"},"saveName":"x.mp4","webhookUrl":"http://…"}
+<span class="cm"># duration 整数秒：画布支持 4–15（低于4按4，超过15封顶）</span>
+
+<span class="m">POST</span> /api/seg      <span class="cm">单 SEG 目录直接跑</span>
+<span class="m">POST</span> /api/import   <span class="cm">目录导入画布（人工预览）</span>
+<span class="m">POST</span> /api/run      <span class="cm">跑空闲/指定节点</span>
+<span class="m">GET</span>  /api/jobs/:id  <span class="cm">→ done 后</span> <span class="m">GET</span> /api/jobs/:id/file <span class="cm">取视频</span></div>
+  </details>
+</section>
+
+<!-- 使用说明弹窗 -->
+<div class="mask" id="ugMask">
+  <div class="mbox" style="width:640px;max-width:92vw;text-align:left">
+    <div class="mt" style="text-align:left">使用说明</div>
+    <pre id="ugText"></pre>
+    <div class="row" style="justify-content:center;margin:12px 0 0">
+      <button class="pri" id="ugClose">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 确认弹窗（通用） -->
+<div class="mask" id="cfMask">
+  <div class="mbox" style="min-width:340px">
+    <div class="mt" id="cfTitle"></div>
+    <div class="msub" id="cfSub"></div>
+    <div class="row" style="justify-content:center;margin-top:14px">
+      <button class="pri" id="cfOk" style="background:var(--err);border-color:var(--err)">确认</button>
+      <button class="ghost" id="cfCancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- Agent 接入说明弹窗 -->
+<div class="mask" id="agMask">
+  <div class="mbox" style="width:680px;max-width:92vw;text-align:left">
+    <div class="mt" style="text-align:left">Agent 接入说明 <span style="font-weight:400;color:var(--tx3);font-size:11px">—— 复制全文发给接入方 Agent 即可</span></div>
+    <pre id="agText"></pre>
+    <div class="row" style="justify-content:center;margin:12px 0 0">
+      <button class="pri" id="agCopy">复制</button>
+      <button class="ghost" id="agClose">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 页3：运行日志 ============ -->
+<section class="page" id="p3">
+  <h2>运行日志 <span class="sub">应用事件 · 实时</span></h2>
+  <div class="card">
+    <div class="row" style="margin-top:0;margin-bottom:6px;justify-content:flex-end">
+      <button id="bLogClear" class="sm ghost">清空日志</button>
+    </div>
+    <div id="log" class="full"></div>
+  </div>
+</section>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const api = (m, p, b) => window.ui.api(m, p, b);
+$('#tbMin').onclick = () => window.ui.winMin();
+$('#tbClose').onclick = () => window.ui.winClose();
+const logEl = $('#log');
+const log = (m) => {
+  const d = document.createElement('div');
+  d.innerHTML = `<span class="t">${new Date().toLocaleTimeString()}</span> ${m}`;
+  logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
+};
+window.ui.onLog(log);
+window.ui.onEvt((m) => { if (m.type === 'job') refresh(); });
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const chip = (label, on) => `<span class="stat"><span class="dot ${on==='ok'?'on':on==='off'?'off':''}"></span>${label}</span>`;
+
+document.querySelectorAll('.nav button').forEach((t) => t.onclick = () => {
+  document.querySelectorAll('.nav button').forEach((x) => x.classList.toggle('on', x === t));
+  document.querySelectorAll('.page').forEach((x) => x.classList.toggle('on', x.id === t.dataset.p));
+});
+
+async function refresh() {
+  try {
+    const s = await api('GET', '/api/status');
+    $('#st1').innerHTML = [
+      chip('登录 ' + (s.page?.token ? '已登录' : '未登录'), s.page?.token ? 'ok' : 'off'),
+      chip(`API 127.0.0.1:${s.port}`, 'ok'),
+    ].join('');
+    $('#bWinToggle').textContent = s.main?.visible ? '隐藏画布窗口' : '显示画布窗口';
+    if (document.activeElement !== $('#dlDir')) $('#dlDir').value = s.downloadDir || '';
+    $('#apiUrl').textContent = `http://127.0.0.1:${s.port}`;
+    $('#apiKey').textContent = s.apiTokenSet ? (s.apiToken || '已设置') : '（未设置 · 无鉴权）';
+    $('#bWorkToggle').textContent = s.work?.visible ? '隐藏' : '显示';
+    $('#bWorkToggle').disabled = !s.workCanvasUrl;
+    $('#qstat').textContent = `　运行 ${s.running}/${s.maxConcurrent} · 排队 ${s.pending}`;
+    $('#footPort').textContent = `127.0.0.1:${s.port}`;
+    $('#footUp').textContent = `uptime ${Math.floor((s.uptime||0)/60)}min`;
+    if (s.version) $('#footVer').textContent = s.version;
+    if (!$('#canvasUrl').value && s.canvasUrl) $('#canvasUrl').value = s.canvasUrl;
+    if (s.workCanvasUrl !== undefined && document.activeElement !== $('#workUrl')) $('#workUrl').value = s.workCanvasUrl || '';
+    $('#mc').value = s.maxConcurrent;
+    $('#cof').checked = !!s.cleanOnFail;
+    $('#cdmin').checked = s.clampDurMin !== false;
+    $('#cdmax').checked = s.clampDurMax !== false;
+
+    // 两页队列分开：p1=画布操作(import/run)，p2=API任务(seg/generate)
+    const allJobs = (s.jobs || []).slice().reverse();
+    const KIND_CN = { import: '导入', run: '运行', generate: '生成', seg: 'SEG', download: '下载' };
+    const rowHtml = (j, withType) => {
+      const pct = j.status === 'done' ? 100 : j.status === 'running' ? 55 : j.status === 'failed' ? 100 : 8;
+      const col = j.status === 'failed' ? 'var(--err)' : '';
+      const active = ['pending', 'running'].includes(j.status);
+      return `<tr><td class="id" title="${j.id}">${j.id.replace('job-','')}</td>
+        ${withType ? `<td>${KIND_CN[j.kind] || j.kind}</td>` : ''}
+        <td><span class="tag ${j.status}">${j.status}</span></td>
+        <td style="min-width:130px">${esc(j.progress||'')}<div class="bar"><i style="width:${pct}%;${col?`background:${col}`:''}"></i></div></td>
+        <td><span class="err">${esc(j.error||'')}</span></td>
+        <td style="text-align:right">${active ? `<button class="sm ghost jstop" data-id="${j.id}" title="停止">■ 停止</button>`
+                     : `<button class="sm ghost jclear" data-id="${j.id}" title="清除记录">✕ 清除</button>`}</td></tr>`;
+    };
+    const jobs1 = allJobs.filter((j) => ['import', 'run'].includes(j.kind));
+    const jobs2 = allJobs.filter((j) => !['import', 'run'].includes(j.kind));
+    $('#jobs2').innerHTML = jobs1.map((j) => rowHtml(j, true)).join('');
+    $('#jobs2Empty').style.display = jobs1.length ? 'none' : '';
+    $('#qstat2').textContent = jobs1.length ? `　${jobs1.length}条` : '';
+    $('#jobs').innerHTML = jobs2.map((j) => rowHtml(j, false)).join('');
+    $('#jobsEmpty').style.display = jobs2.length ? 'none' : '';
+    document.querySelectorAll('.jstop').forEach((b) => b.onclick = async () => {
+      await api('POST', `/api/jobs/${b.dataset.id}/cancel`); refresh();
+    });
+    document.querySelectorAll('.jclear').forEach((b) => b.onclick = async () => {
+      await api('POST', `/api/jobs/${b.dataset.id}/clear`); refresh();
+    });
+
+    // 页1：任务进行中 → 对应按钮变红停止、其余按钮全禁用
+    const imp = (s.jobs || []).slice().reverse().find((j) => j.kind === 'import' && ['running', 'pending'].includes(j.status));
+    const runJ = (s.jobs || []).slice().reverse().find((j) => j.kind === 'run' && ['running', 'pending'].includes(j.status));
+    impJobRunning = imp || null;
+    runJobRunning = runJ || null;
+    const busy = !!(imp || runJ);
+    document.querySelectorAll('.sgo').forEach((b) => { b.disabled = busy; });
+    ['bNewCol', 'bClearMain', 'bScan', 'bPick'].forEach((id) => { $(`#${id}`).disabled = busy; });
+    $('#bImport').disabled = !!runJ;   // 导入中本身是停止钮不锁；run 中禁用
+    $('#bRunIdle').disabled = !!imp;   // run 中本身是停止钮不锁；import 中禁用
+    $('#conc').disabled = $('#runN').disabled = busy;
+    if (runJ) {
+      $('#bRunIdle').textContent = '■ 停止运行';
+      $('#bRunIdle').className = 'danger';
+    } else {
+      $('#bRunIdle').textContent = '▶ 运行空闲节点';
+      $('#bRunIdle').className = '';
+    }
+    if (imp) {
+      $('#bImport').textContent = '■ 停止';
+      $('#bImport').className = 'danger';
+    } else {
+      $('#bImport').className = 'pri';
+      $('#bImport').textContent = scanData ? `批量导入（${segRows().length}）` : '批量导入';
+    }
+    if (imp || runJ) {
+      const j2 = imp || runJ;
+      $('#impJob').style.display = '';
+      $('#impJob').innerHTML = `<span class="tag ${j2.status}">${j2.status}</span>
+        <span style="color:var(--tx2);font-size:12px">${imp ? '导入中' : '运行中'} ${esc(j2.progress || '')} · ${j2.id.slice(0, 14)}…</span>`;
+    } else {
+      $('#impJob').style.display = 'none';
+    }
+  } catch (e) { $('#st1').innerHTML = chip('API 未就绪', 'off'); }
+}
+
+// 窗口显示/隐藏 toggle（按 status.visible 决定动作）
+$('#bWinToggle').onclick = async () => {
+  const s = await api('GET', '/api/status');
+  await api('POST', s.main?.visible ? '/api/canvas/hide' : '/api/canvas/show');
+  refresh();
+};
+$('#bWorkToggle').onclick = async () => {
+  const s = await api('GET', '/api/status');
+  await api('POST', s.work?.visible ? '/api/canvas/work-hide' : '/api/canvas/work-show');
+  refresh();
+};
+$('#bDl').onclick = () => api('POST', '/api/open-downloads');
+$('#bCv').onclick = async () => log(`切换导入画布 → ${JSON.stringify(await api('POST','/api/canvas/url',{url:$('#canvasUrl').value}))}`);
+$('#bWorkUrl').onclick = async () => log(`工作画布 → ${JSON.stringify(await api('POST','/api/canvas/work-url',{url:$('#workUrl').value}))}`);
+$('#bWorkClear').onclick = async () => { if (confirm('清空工作画布全部节点？')) log(`清空 → ${JSON.stringify(await api('POST','/api/canvas/clear',{canvas:'work'}))}`); };
+$('#bSaveCfg').onclick = async () => {
+  const r = await api('POST', '/api/config', {
+    maxConcurrent: +$('#mc').value || 2, cleanOnFail: $('#cof').checked,
+    clampDurMin: $('#cdmin').checked, clampDurMax: $('#cdmax').checked,
+  });
+  $('#cfgMsg').textContent = r.ok ? '已保存 ✓' : (r.error || '');
+  setTimeout(() => $('#cfgMsg').textContent = '', 2500);
+  refresh();
+};
+// ============ 页1：目录导入（插件同款两级筛选 + SEG 勾选列表） ============
+let scanData = null;   // /api/scan 结果
+let colSeed = null;    // 「换列」记住的新列起点（持续生效直到再点换列）
+let colTopY = null;    // 所有列共用的列顶 Y（首次换列锁定，保证每列同高起点）
+let impJobRunning = null; // 运行中的导入任务（导入按钮 → 停止 toggle）
+let runJobRunning = null; // 运行中的「运行空闲」任务（运行按钮 → 停止 toggle）
+
+const segRows = () => {
+  if (!scanData) return [];
+  const pk = $('#selProj').value, ek = $('#selEp').value;
+  const proj = scanData.find((p) => p.key === pk);
+  if (!proj) return [];
+  const eps = ek === '__all__' ? proj.eps : proj.eps.filter((e) => e.name === ek);
+  return eps.flatMap((e) => e.segs.map((s) => ({ epName: `${proj.name}/${e.name}`, ...s })));
+};
+
+const renderScope = () => {
+  // 多级目录 → 下拉；2级目录（root→SEG）→ 隐藏全部下拉只显示项目名
+  const multiProj = scanData.length > 1;
+  $('#selProj').style.display = multiProj ? '' : 'none';
+  $('#selProj').innerHTML = scanData.map((p) =>
+    `<option value="${esc(p.key)}">${esc(p.name)}（${p.eps.length}EP/${p.eps.reduce((a, e) => a + e.segs.length, 0)}SEG）</option>`).join('');
+  renderEp();
+};
+const renderEp = () => {
+  const proj = scanData.find((p) => p.key === $('#selProj').value) || scanData[0];
+  const eps = proj?.eps || [];
+  const showEpSel = eps.length > 1;
+  $('#selEp').style.display = showEpSel ? '' : 'none';
+  $('#scopeName').textContent = (!showEpSel && eps.length === 1 && scanData.length === 1) ? eps[0].name : '';
+  const tot = eps.reduce((a, e) => a + e.segs.length, 0);
+  $('#selEp').innerHTML = `<option value="__all__">全部EP（${eps.length}个/${tot}SEG）</option>` +
+    eps.map((e) => `<option value="${esc(e.name)}">${esc(e.name)}（${e.segs.length}SEG）</option>`).join('');
+  renderSegs();
+};
+const renderSegs = () => {
+  const rows = segRows();
+  let html = '', lastEp = null;
+  rows.forEach((r) => {
+    if (r.epName !== lastEp && $('#selEp').style.display !== 'none' && $('#selEp').value === '__all__')
+      html += `<div class="epsep">${esc(r.epName)}</div>`;
+    lastEp = r.epName;
+    html += `<div class="srow" title="${esc(r.dir)}">
+      <span class="nm">${esc(r.name)}</span>
+      <span class="meta${r.hasPrompt ? '' : ' bad'}">${r.images}图 ${r.seconds || '?'}s${r.hasPrompt ? '' : ' 缺txt'}</span>
+      <button class="sm ghost sgo" data-dir="${esc(r.dir)}">导入</button></div>`;
+  });
+  $('#segList').innerHTML = html || '<div class="empty">无 SEG</div>';
+  if (!impJobRunning) $('#bImport').textContent = `批量导入（${rows.length}）`;
+  document.querySelectorAll('.sgo').forEach((b) => b.onclick = () => importDirs([b.dataset.dir]));
+};
+const scopeDirs = () => segRows().map((r) => r.dir);
+
+const doScan = async () => {
+  const r = await api('POST', '/api/scan', { rootDir: $('#dir').value });
+  if (r.error) { $('#scanOut').textContent = r.error; return; }
+  scanData = r.projects.map((p) => ({ key: p.name, ...p }));
+  const totEp = scanData.reduce((a, p) => a + p.eps.length, 0);
+  const totSeg = scanData.reduce((a, p) => a + p.eps.reduce((x, e) => x + e.segs.length, 0), 0);
+  $('#scanOut').textContent = `${scanData.length}项目 · ${totEp}EP · ${totSeg}SEG`;
+  $('#scopeRow').style.display = '';
+  $('#segBox').style.display = '';
+  renderScope();
+};
+$('#bScan').onclick = doScan;
+$('#selProj').onchange = renderEp;
+$('#selEp').onchange = renderSegs;
+$('#bLogClear').onclick = () => { logEl.innerHTML = ''; };
+const CANVAS_KINDS = ['import', 'run'], API_KINDS = ['seg', 'generate'];
+$('#bStopAll').onclick = async () => { const r = await api('POST', '/api/jobs/cancel-all', { kinds: API_KINDS }); log(`全部停止 → ${r.n}个任务`); refresh(); };
+$('#bClearDone').onclick = async () => { const r = await api('POST', '/api/jobs/clear', { kinds: API_KINDS }); log(`清除结束记录 → ${r.removed}条`); refresh(); };
+$('#bStopAll2').onclick = async () => { const r = await api('POST', '/api/jobs/cancel-all', { kinds: CANVAS_KINDS }); log(`全部停止 → ${r.n}个任务`); refresh(); };
+$('#bClearDone2').onclick = async () => { const r = await api('POST', '/api/jobs/clear', { kinds: CANVAS_KINDS }); log(`清除结束记录 → ${r.removed}条`); refresh(); };
+const cp = (sel) => navigator.clipboard.writeText($(sel).textContent).catch(() => {});
+$('#bCpUrl').onclick = () => cp('#apiUrl');
+$('#bCpKey').onclick = () => cp('#apiKey');
+$('#bRandKey').onclick = async () => {
+  const a = new Uint8Array(6); crypto.getRandomValues(a);
+  const k = 'rh_' + [...a].map((x) => x.toString(16).padStart(2, '0')).join('');
+  await api('POST', '/api/config', { apiToken: k });
+  log(`API Key 已生成（旧 key 失效）`);
+  refresh();
+};
+
+// ===== Agent 接入说明弹窗 =====
+const agentDoc = (s) => `# RH 画布视频生成 · Agent 接入说明
+
+本服务将 RunningHub 画布的 MiniMax 视频生成封装为本地 HTTP API。
+第三方应用 / Agent 通过以下接口提交"图片 + 提示词 + 参数"，轮询任务，取回 MP4。
+
+## 基础信息
+- 基础地址：http://127.0.0.1:${s.port}（仅本机；跨机调用改为宿主机 IP）
+- 协议：HTTP + JSON；图片参数传"本机绝对路径"（服务端直接读盘上传）
+- 鉴权：${s.apiTokenSet ? `已开启 —— 所有请求必须带请求头 X-Api-Token: ${s.apiToken} （或 URL 参数 ?token=同值）` : '当前未开启（无 API Key，直接调用即可）'}
+
+## 主流程：生成视频
+1) POST /api/generate   提交任务入队
+   body 示例：
+   {"images":["E:/path/1.png","E:/path/2.png"],
+    "prompt":"视频提示词文本",
+    "duration":4,
+    "params":{"aspectRatio":"9:16","resolution":"768p"},
+    "saveName":"out.mp4",
+    "webhookUrl":"http://你的回调地址（可选）"}
+   说明：images 参考图 1~9 张绝对路径；duration 整数秒（画布支持 4–15，越界按服务端配置钳位）；
+        aspectRatio 支持 "9:16"/"16:9"/"1:1"；saveName 仅影响本地保存文件名。
+   返回：{"job":{"id":"job-xxx",...}}  或  {"error":"..."}
+
+2) GET /api/jobs/<jobId>   轮询状态（建议每 8~15 秒一次）
+   status: pending(排队) | running(执行中) | done | failed | cancelled
+   done 时含 filePath（本地 MP4 路径）与 videoUrl；failed 时 error 给原因；
+   progress 字段描述当前阶段（上传中/建节点/生成中/下载中）。
+
+3) GET /api/jobs/<jobId>/file   done 后下载 MP4 二进制流
+   （同机部署也可直接读 filePath 所指本地文件）
+
+## 并发与队列
+- 并发上限 ${s.maxConcurrent}：超出自动排队，按序执行；无需调用方管理。
+- 每任务自动：上传图片→画布建节点连线→触发生成→轮询→下载→清理其创建的画布节点。
+- 取消：POST /api/jobs/<id>/cancel（当前步骤完成后停止）；批量停止 /api/jobs/cancel-all。
+
+## 其他接口
+GET  /api/status              服务状态（登录态/队列/工作画布）
+POST /api/seg                 {"dir":"E:/.../SEG001-4s"}  按 SEG 目录快捷生成（自动读图+txt提示词+秒数）
+POST /api/jobs/clear          清除所有已结束任务记录
+GET  /api/config / POST       查询/修改配置（maxConcurrent、workCanvasUrl、apiToken、downloadDir）
+
+## 错误约定
+接口级失败返回 {"error":"描述"}；任务级失败看 job.status=failed + job.error。
+未登录 RunningHub / agent 未注入时任务会立即失败，先 GET /api/status 确认 token/agent 在线。
+
+## 伪代码
+job = POST /api/generate {...}
+loop { j = GET /api/jobs/{job.id}; if j.status in [done,failed] break; sleep 10s }
+if j.status==done: mp4 = GET /api/jobs/{job.id}/file`;
+$('#bAgent').onclick = async () => {
+  const s = await api('GET', '/api/status');
+  $('#agText').textContent = agentDoc(s);
+  $('#agMask').style.display = 'flex';
+};
+$('#agCopy').onclick = () => navigator.clipboard.writeText($('#agText').textContent).catch(() => {});
+$('#agClose').onclick = () => { $('#agMask').style.display = 'none'; };
+$('#agMask').onclick = (e) => { if (e.target === $('#agMask')) $('#agMask').style.display = 'none'; };
+
+// ===== 使用说明弹窗 =====
+$('#ugText').textContent = `目录结构（支持 2~3 级，拖入或选择根目录 → 读取目录）
+
+根目录/
+├── 项目A/                  ← 可选层（多个 EP 的父目录）
+│   ├── EP018/
+│   │   ├── SEG006-3s/      ← 片段目录
+│   │   │   ├── 1.png       ← 参考图：按文件名数字序排列
+│   │   │   ├── 2.png …
+│   │   │   └── 3s-提示词.txt ← 提示词文件
+│   │   └── SEG001-6s/
+│   └── EP019/
+└── 项目B/
+
+片段目录命名
+· 时长用 Ns 标注（N=秒数，大小写都行）：可放名前或名后
+· 与名称用 空格 / - / _ 等分隔均可
+· 合法示例：SEG006-3s   SEG006 6S   6s_片头   片头-6s
+· 时长范围：画布支持 4–15 秒（越界按 API 页「时长钳位」设置处理）
+
+提示词文件
+· 支持 .txt / .md / .doc / .docx
+· 多个同名时只取排序后的第一个
+
+操作流程
+1. 拖入项目目录（或 选择…）→ 读取目录
+2. 2级以上目录显示下拉选范围；最后一级 SEG 以列表显示
+3. 批量导入跨多个文件夹时，弹窗选「合并一列 / 每EP一列」
+4. ⇥换列：锁定新列起点（列顶统一高度，再点重新计算）
+5. ☑导入后立即运行：生成完成后自动下载 MP4 到下载目录
+6. 🧹清理导入节点：删除本应用导入的 vid-*/txt-* 节点，不动你的内容`;
+$('#bGuide').onclick = () => { $('#ugMask').style.display = 'flex'; };
+$('#ugClose').onclick = () => { $('#ugMask').style.display = 'none'; };
+$('#ugMask').onclick = (e) => { if (e.target === $('#ugMask')) $('#ugMask').style.display = 'none'; };
+$('#bPick').onclick = async () => { const p = await window.ui.pickDir(); if (p) { $('#dir').value = p; doScan(); } };
+
+// 拖入文件夹读取（webUtils 取真实路径 → 服务端扫描）
+const dz = $('#dropZone');
+['dragenter', 'dragover'].forEach((ev) => dz.addEventListener(ev, (e) => {
+  e.preventDefault(); e.stopPropagation(); dz.classList.add('over');
+}));
+['dragleave', 'drop'].forEach((ev) => dz.addEventListener(ev, (e) => {
+  e.preventDefault(); e.stopPropagation(); dz.classList.remove('over');
+}));
+dz.addEventListener('drop', async (e) => {
+  const f = e.dataTransfer.files?.[0];
+  const p = f && (await window.ui.pathFor(f));
+  if (p) { $('#dir').value = p; doScan(); } else log('拖入的不是目录');
+});
+
+// 下载目录：选择保存 / 输入框回车保存 / 打开
+const saveDlDir = async () => {
+  const v = $('#dlDir').value.trim();
+  if (!v) return;
+  const r = await api('POST', '/api/config', { downloadDir: v });
+  log(r.error ? `下载目录保存失败: ${r.error}` : `下载目录 → ${v}`);
+};
+$('#bDlPick').onclick = async () => {
+  const p = await window.ui.pickDir();
+  if (p) { $('#dlDir').value = p; saveDlDir(); }
+};
+$('#dlDir').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveDlDir(); });
+$('#dlDir').addEventListener('blur', saveDlDir);
+
+const importDirs = async (dirs, mode) => {
+  if (!dirs.length) return log('没有勾选的 SEG');
+  const body = { segDirs: dirs, mode };
+  // colSeed 持续生效：点了换列后导入一直在新列，直到再次点换列重新计算
+  if (colSeed) { body.colSeed = colSeed; }
+  const r = await api('POST', '/api/import', body);
+  log(`import → ${r.error || `job ${r.job.id}（${r.count} SEG · ${mode === 'split' ? '每EP一列' : '合并一列'}）`}`);
+  refresh();
+};
+
+// 插件同款弹窗：跨EP批量导入时选布局
+const askMode = (eps) => new Promise((res) => {
+  const mask = $('#mask');
+  $('#mCount').textContent = '';
+  $('#mEps').textContent = eps;
+  mask.style.display = 'flex';
+  const done = (v) => { mask.style.display = 'none'; res(v); };
+  $('#mMerge').onclick = () => done('merge');
+  $('#mSplit').onclick = () => done('split');
+  $('#mCancel').onclick = () => done(null);
+  mask.onclick = (e) => { if (e.target === mask) done(null); };
+});
+
+// 批量导入 toggle：空闲 → 批量导入；运行中 → 红色停止
+$('#bImport').onclick = async () => {
+  if (impJobRunning) {
+    await api('POST', `/api/jobs/${impJobRunning.id}/cancel`);
+    log(`已请求停止 ${impJobRunning.id.slice(0, 14)}…`);
+    return;
+  }
+  const dirs = scopeDirs();
+  if (!dirs.length) return log('先读取目录');
+  const eps = new Set(dirs.map((d) => d.split(/[\\/]/).slice(-2, -1)[0]));
+  let mode = 'merge';
+  if (eps.size > 1) {
+    $('#mCount').textContent = dirs.length;
+    mode = await askMode(eps.size);
+    if (!mode) return log('已取消导入');
+  }
+  importDirs(dirs, mode);
+};
+
+$('#bNewCol').onclick = async () => {
+  const r = await api('POST', '/api/cv', { cmd: 'freeOrigin', args: { gap: 320 } });
+  if (r && Number.isFinite(r.x)) {
+    if (colTopY == null) colTopY = r.y; // 锁统一列顶
+    colSeed = { x: r.x, y: colTopY };
+    $('#colTip').style.display = '';
+    $('#colTip').textContent = `当前列 x≈${Math.round(r.x)}，列顶 y=${Math.round(colTopY)}，导入都在这列排（再点换列重新计算新列）`;
+    log(`换列 → x=${Math.round(r.x)} 列顶 y=${Math.round(colTopY)}`);
+  } else log('画布还没有内容，无需换列');
+};
+// ===== 确认弹窗（同批量导入弹窗样式） =====
+const confirmBox = (title, sub, okText = '确认') => new Promise((res) => {
+  $('#cfTitle').textContent = title;
+  $('#cfSub').textContent = sub;
+  $('#cfOk').textContent = okText;
+  $('#cfMask').style.display = 'flex';
+  const done = (v) => { $('#cfMask').style.display = 'none'; res(v); };
+  $('#cfOk').onclick = () => done(true);
+  $('#cfCancel').onclick = () => done(false);
+  $('#cfMask').onclick = (e) => { if (e.target === $('#cfMask')) done(false); };
+});
+
+// 运行空闲节点：toggle——运行中变红 ■停止运行（含轮询查询+下载保存）
+$('#bRunIdle').onclick = async () => {
+  if (runJobRunning) {
+    await api('POST', `/api/jobs/${runJobRunning.id}/cancel`);
+    log('已请求停止运行');
+    return;
+  }
+  const runN = $('#conc').checked ? (+$('#runN').value || 2) : 1;
+  const r = await api('POST', '/api/run', { canvas: 'main', runN });
+  log(`run → ${r.error || 'job ' + r.job.id}（并发${runN}）`);
+  refresh();
+};
+
+$('#bClearMain').onclick = async () => {
+  if (!(await confirmBox('清空画布', '将删除画布上全部节点和连线，不可恢复'))) return;
+  const r = await api('POST', '/api/canvas/clear', { canvas: 'main' });
+  log(`清空 → 节点${r.rmN} 边${r.rmE}`);
+};
+
+// 控件持久化：所有带 id 的输入/勾选/下拉存 localStorage，下次打开原样恢复
+const UI_STATE_KEY = 'rh_ui_state_v1';
+(function persistUi(){
+  const saved = JSON.parse(localStorage.getItem(UI_STATE_KEY) || '{}');
+  document.querySelectorAll('input[id],select[id],textarea[id]').forEach((el) => {
+    if (el.id in saved) {
+      if (el.type === 'checkbox') el.checked = !!saved[el.id];
+      else el.value = saved[el.id];
+    }
+    el.addEventListener('change', () => {
+      const o = JSON.parse(localStorage.getItem(UI_STATE_KEY) || '{}');
+      document.querySelectorAll('input[id],select[id],textarea[id]').forEach((x) => {
+        o[x.id] = x.type === 'checkbox' ? x.checked : x.value;
+      });
+      localStorage.setItem(UI_STATE_KEY, JSON.stringify(o));
+    });
+  });
+})();
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
